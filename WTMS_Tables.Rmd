@@ -1,0 +1,476 @@
+---
+title: "WTMS Nicely Formatted tables"
+output: 
+  html_notebook:
+    toc: true
+
+---
+
+
+
+# Load the Libraries
+```{r}
+# Need this package for DPLYR and ggplot etc.
+install.packages("tidyverse")
+library(tidyverse)
+
+# Need this package for formating tables.
+install.packages("formattable")
+library(formattable)
+
+```
+
+# Load the Data
+
+```{r}
+Issues_2020.08.11 <- read.csv("Issues_2020-08-11.csv")
+Furniture_2020.08.11 <- read.csv("Furniture_2020-08-11.csv")
+```
+
+
+I started this Notebook as it became obvious that data structure needs to be different depending on whether I wanted to output Tables or Charts.
+
+# Data Transformation
+
+Here we need to get the data into a single table for display. I'm going to try and start simple with the "Present Furniture" of the RMP Tables. This is a summary table of WCP furniture (not including Signs).
+
+We'll start off by defining the Table categories for Present Furniture:
+
+## The Template
+```{r}
+RMP_PresentFurniture <- data.frame(RMP_Group = c("Boardwalks", "Bridges", "Gates Kissing", "Gates Other", "Steps - Flights", "Stiles - Ladder", "Stiles - Step", "Stiles - Stone"))
+```
+
+## Issues
+
+### Select relevant variables and create category variables
+First we need to tidy up the table by selecting only the variables we're interested in:
+
+```{r}
+Issues <- select(Issues_2020.08.11, Region, IssueType, IssueTypeGroup, StatusDesc, PriorityDesc, IssueCode, ManagingAuth, Complete, Firm, ProtrusionFree, SafelySited, HandpostPresent, StepsInPlace, SwingFreely, LatchesAndBolts, HorseLatch, BackpackNegotiable, LogoPresent, OrientedCorrectly, ClearlyVisible, Bilingual, RouteName, Action, OverallDateLastUpdated, PromotedRoute)
+```
+
+
+Then we need to do the hard job of assigning the Furniture and Issue records to each of the above categories using the Furniture or Issue Types:
+
+```{r}
+# The below is NOT PERFECT, and I'm starting to think it is better to define these categories in CAMS - this would allow greated understanding of which furniture items are scored within RMPs for local authorities if/when they get access to CAMS Web.
+Issues <- mutate(Issues,
+       RMP_Group = case_when(
+  grepl("Boardwalk", IssueType) ~ "Boardwalks",
+  grepl("Bridge", IssueType) ~ "Bridges",
+  grepl("Gate", IssueType) ~ "Gates Other",
+  grepl("Kissing", IssueType) ~ "Gates Kissing",
+  grepl("Steps", IssueType) ~ "Steps - Flights",
+  grepl("Ladder", IssueType) ~ "Stiles - Ladder",
+  grepl("Step", IssueType) ~ "Stiles - Step",
+  grepl("Stone", IssueType) ~ "Stiles - Stone"
+  )) %>% 
+
+# This is a good way of identifying categories which are reported under QS, we can then filter
+mutate(Issues,
+       QS_Tables = if_else(grepl("[*]$",IssueType), "Yes", "No"))
+
+```
+
+We also need to tidy up the Quality Standards variables.
+
+```{r}
+# Let's see if we can use mutate to just replace "Pass" "Fail" and NA with numeric values.
+
+Issues <- mutate(Issues, 
+                 Complete = if_else(grepl("Fail",Complete), "Fail", "Pass"),
+                 Firm = if_else(grepl("Fail",Firm), "Fail", "Pass"),
+                 ProtrusionFree = if_else(grepl("Fail",ProtrusionFree), "Fail", "Pass"),
+                 SafelySited = if_else(grepl("Fail",SafelySited), "Fail", "Pass"),
+                 HandpostPresent = if_else(grepl("Fail",HandpostPresent), "Fail", "Pass"),
+                 StepsInPlace = if_else(grepl("Fail",StepsInPlace), "Fail", "Pass"),
+                 SwingFreely = if_else(grepl("Fail",SwingFreely), "Fail", "Pass"),
+                 LatchesAndBolts = if_else(grepl("Fail",LatchesAndBolts), "Fail", "Pass"),
+                 BackpackNegotiable = if_else(grepl("Fail",BackpackNegotiable), "Fail", "Pass"),
+                 LogoPresent = if_else(grepl("Fail",LogoPresent), "Fail", "Pass"),
+                 OrientedCorrectly = if_else(grepl("Fail",OrientedCorrectly), "Fail", "Pass"),
+                 ClearlyVisible = if_else(grepl("Fail",ClearlyVisible), "Fail", "Pass"),
+                 Bilingual = if_else(grepl("Fail",Bilingual), "Fail", "Pass"),
+                 RouteName = if_else(grepl("Fail",RouteName), "Fail", "Pass"),
+                 )
+
+```
+
+Then we need to filter out only the relevant records
+
+```{r}
+# Now lets filter only for the Issue records we're interested in reporting.
+Issues_FurniturePresent <-   filter(Issues, QS_Tables == "Yes" & StatusDesc == "Unresolved" & !is.na(RMP_Group))
+```
+
+
+### Issues Summary
+
+### Number of Issues
+
+Now we're gonna create a Summary Table for Issues 
+
+
+
+```{r}
+Issues_Summary_Table <- 
+  Issues_FurniturePresent %>% 
+  group_by(RMP_Group) %>% 
+  summarise(Issues = n())
+
+Issues_Summary_Table
+```
+
+### Count Quality Standard test Fails
+
+```{r}
+QS_Summary_Table <- data.frame(RMP_Group = Issues_FurniturePresent)
+```
+
+filter(Issues_FurniturePresent, Complete == "Fail") %>% 
+```{r}
+Complete <-  Issues_FurniturePresent %>% 
+  filter(Complete == "Fail") %>% 
+  group_by(RMP_Group) %>%
+  summarise(Complete = n())
+
+Firm <-  Issues_FurniturePresent %>% 
+  filter(Firm == "Fail") %>% 
+  group_by(RMP_Group) %>%
+  summarise(Firm = n())
+
+ProtrusionFree <-  Issues_FurniturePresent %>% 
+  filter(ProtrusionFree == "Fail") %>% 
+  group_by(RMP_Group) %>%
+  summarise(ProtrusionFree = n())
+
+SafelySited <-  Issues_FurniturePresent %>% 
+  filter(SafelySited == "Fail") %>% 
+  group_by(RMP_Group) %>%
+  summarise(SafelySited = n())
+
+HandpostPresent <-  Issues_FurniturePresent %>% 
+  filter(HandpostPresent == "Fail") %>% 
+  group_by(RMP_Group) %>%
+  summarise(HandpostPresent = n())
+
+StepsInPlace <-  Issues_FurniturePresent %>% 
+  filter(StepsInPlace == "Fail") %>% 
+  group_by(RMP_Group) %>%
+  summarise(StepsInPlace = n())
+
+SwingFreely <-  Issues_FurniturePresent %>% 
+  filter(SwingFreely == "Fail") %>% 
+  group_by(RMP_Group) %>%
+  summarise(SwingFreely = n())
+
+LatchesAndBolts <-  Issues_FurniturePresent %>% 
+  filter(LatchesAndBolts == "Fail") %>% 
+  group_by(RMP_Group) %>%
+  summarise(LatchesAndBolts = n())
+
+HorseLatch <-  Issues_FurniturePresent %>% 
+  filter(HorseLatch == "Fail") %>% 
+  group_by(RMP_Group) %>%
+  summarise(HorseLatch = n())
+
+BackpackNegotiable <-  Issues_FurniturePresent %>% 
+  filter(BackpackNegotiable == "Fail") %>% 
+  group_by(RMP_Group) %>%
+  summarise(BackpackNegotiable = n())
+
+LogoPresent <-  Issues_FurniturePresent %>% 
+  filter(LogoPresent == "Fail") %>% 
+  group_by(RMP_Group) %>%
+  summarise(LogoPresent = n())
+
+OrientedCorrectly <-  Issues_FurniturePresent %>% 
+  filter(OrientedCorrectly == "Fail") %>% 
+  group_by(RMP_Group) %>%
+  summarise(OrientedCorrectly = n())
+
+ClearlyVisible <-  Issues_FurniturePresent %>% 
+  filter(ClearlyVisible == "Fail") %>% 
+  group_by(RMP_Group) %>%
+  summarise(ClearlyVisible = n())
+
+Bilingual <-  Issues_FurniturePresent %>% 
+  filter(Bilingual == "Fail") %>% 
+  group_by(RMP_Group) %>%
+  summarise(Bilingual = n())
+
+RouteName <-  Issues_FurniturePresent %>% 
+  filter(RouteName == "Fail") %>% 
+  group_by(RMP_Group) %>%
+  summarise(RouteName = n())
+
+QS_Summary_Table <- left_join(RMP_PresentFurniture, Complete, by = "RMP_Group")
+QS_Summary_Table <-   left_join(QS_Summary_Table, Firm, by = "RMP_Group")
+QS_Summary_Table <-   left_join(QS_Summary_Table, ProtrusionFree, by = "RMP_Group")
+QS_Summary_Table <-   left_join(QS_Summary_Table, SafelySited, by = "RMP_Group")
+QS_Summary_Table <-   left_join(QS_Summary_Table, HandpostPresent, by = "RMP_Group")
+QS_Summary_Table <-   left_join(QS_Summary_Table, StepsInPlace, by = "RMP_Group")
+QS_Summary_Table <-   left_join(QS_Summary_Table, SwingFreely, by = "RMP_Group")
+QS_Summary_Table <-   left_join(QS_Summary_Table, LatchesAndBolts, by = "RMP_Group")
+QS_Summary_Table <-   left_join(QS_Summary_Table, HorseLatch, by = "RMP_Group")
+QS_Summary_Table <-   left_join(QS_Summary_Table, BackpackNegotiable, by = "RMP_Group")
+QS_Summary_Table <-   left_join(QS_Summary_Table, LogoPresent, by = "RMP_Group")
+QS_Summary_Table <-   left_join(QS_Summary_Table, OrientedCorrectly, by = "RMP_Group")
+QS_Summary_Table <-   left_join(QS_Summary_Table, ClearlyVisible, by = "RMP_Group")
+QS_Summary_Table <-   left_join(QS_Summary_Table, Bilingual, by = "RMP_Group")
+QS_Summary_Table <-   left_join(QS_Summary_Table, RouteName, by = "RMP_Group")
+
+QS_Summary_Table
+
+rm(Complete, Firm, ProtrusionFree, SafelySited, HandpostPresent, StepsInPlace, SwingFreely, LatchesAndBolts, HorseLatch, BackpackNegotiable, LogoPresent, OrientedCorrectly, ClearlyVisible, Bilingual, RouteName)
+```
+
+
+## Furniture
+
+As before, we first need to create a tidy data frame by selecting only the variables we're interested in:
+
+```{r}
+Furniture <- select(Furniture_2020.08.11, Region, FurnitureType, FurnitureGroupType, LatestSurveyCondition, InfraCode)
+```
+
+Then, as with Issues, we need to assign RMP categories.
+
+```{r}
+# See previous comment under "Issues" for various reasons I think this would be better defined with CAMS
+Furniture <- mutate(Furniture,
+       RMP_Group = case_when(
+  grepl("Boardwalk", FurnitureType) ~ "Boardwalks",
+  grepl("Bridge", FurnitureType) ~ "Bridges",
+  grepl("Gate", FurnitureType) ~ "Gates Other",
+  grepl("Kissing", FurnitureType) ~ "Gates Kissing",
+  grepl("Steps", FurnitureType) ~ "Steps - Flights",
+  grepl("Ladder", FurnitureType) ~ "Stiles - Ladder",
+  grepl("Step", FurnitureType) ~ "Stiles - Step",
+  grepl("Stone", FurnitureType) ~ "Stiles - Stone"
+  )) %>% 
+
+# This is a good way of identifying categories which are reported under QS, we can then filter
+mutate(Furniture,
+       QS_Tables = if_else(grepl("[*]$",FurnitureType), "Yes", "No"))
+
+# Now lets filter only for the Issue records we're interested in reporting.
+Furniture_FurniturePresent <-   filter(Furniture, QS_Tables == "Yes" & LatestSurveyCondition != "Not Present" & !is.na(RMP_Group))
+
+
+```
+
+
+Now we're gonna create a Summary Table for Furniture
+
+```{r}
+Furniture_Summary_Table <- 
+  Furniture_FurniturePresent %>% 
+  group_by(RMP_Group) %>% 
+  summarise(Furniture = n())
+
+Furniture_Summary_Table
+```
+
+## Merging Furniture and Issue summaries
+
+Now for the challenging bit!
+
+```{r}
+# Let's initially try to use merge function (which can only merge two data frames at a time).
+
+Furniture_Present_Summary <- left_join(RMP_PresentFurniture, Furniture_Summary_Table, by = "RMP_Group")
+
+Furniture_Present_Summary <-   left_join(Furniture_Present_Summary, Issues_Summary_Table, by = "RMP_Group")
+
+Furniture_Present_Summary
+```
+
+# Final Table Options
+
+## Overall Number of Furniture Vs Number of Issues
+
+```{r}
+Furniture_Present_Summary <- mutate(Furniture_Present_Summary, IssueVsFurn = Issues / Furniture)
+
+Furniture_Present_Summary[is.na(Furniture_Present_Summary)] <- 0
+
+FPS_Formattable <- data.frame(
+  RMP_Group = Furniture_Present_Summary$RMP_Group,
+  Furniture = Furniture_Present_Summary$Furniture,
+  Issues = Furniture_Present_Summary$Issues,
+  IssueVsFurn = percent(Furniture_Present_Summary$IssueVsFurn)
+)
+
+
+formattable(FPS_Formattable,
+            align = c("l", "c", "c", "r"), 
+            list(
+              RMP_Group = formatter("span", style = ~ style(color = "grey",font.weight = "bold", width = "200")), 
+              IssueVsFurn = color_bar("lightblue"),
+              Furniture = color_tile("transparent", "Grey"),
+              Issues = color_tile("transparent", "pink")
+                 ))
+
+
+```
+
+## Quality Standards Tests
+
+```{r}
+# Formattable doesn't like NA's so this switches them for 0s
+QS_Summary_Table[is.na(QS_Summary_Table)] <- 0
+```
+
+### Boardwalks
+
+```{r}
+#Boardwalks
+QS_Summary_Table_Boardwalks <- select(QS_Summary_Table, RMP_Group, Complete, Firm, ProtrusionFree, SafelySited)
+QS_Summary_Table_Boardwalks <- filter(QS_Summary_Table_Boardwalks, RMP_Group %in% c("Boardwalks"))
+
+formattable(QS_Summary_Table_Boardwalks, 
+            align = c("l", rep("c", NCOL(QS_Summary_Table_Boardwalks))),
+            list(
+  RMP_Group = formatter("span", style = ~ style(color = "grey",font.weight = "bold")),              
+  Complete = color_tile("white", "pink"),
+  Firm = color_tile("white", "pink"),
+  ProtrusionFree = color_tile("white", "pink"),
+  SafelySited = color_tile("white", "pink")
+            ))
+rm(QS_Summary_Table_Boardwalks)
+```
+
+
+### Bridges
+
+```{r}
+QS_Summary_Table_Bridges <- select(QS_Summary_Table, RMP_Group, Complete, Firm, ProtrusionFree, SafelySited, LogoPresent)
+QS_Summary_Table_Bridges <- filter(QS_Summary_Table_Bridges, RMP_Group %in% c("Bridges"))
+
+formattable(QS_Summary_Table_Bridges, 
+            align = c("l", rep("c", NCOL(QS_Summary_Table_Bridges))),
+            list(
+  RMP_Group = formatter("span", style = ~ style(color = "grey",font.weight = "bold")),              
+  Complete = color_tile("white", "pink"),
+  Firm = color_tile("white", "pink"),
+  ProtrusionFree = color_tile("white", "pink"),
+  SafelySited = color_tile("white", "pink"),
+  LogoPresent = color_tile("white", "pink")
+            ))
+rm(QS_Summary_Table_Bridges)
+```
+
+
+### Gates
+
+```{r}
+# Gates
+QS_Summary_Table_Gates <- select(QS_Summary_Table, RMP_Group, Complete, Firm, ProtrusionFree, SafelySited, SwingFreely, LatchesAndBolts, HorseLatch, BackpackNegotiable, LogoPresent)
+QS_Summary_Table_Gates <- filter(QS_Summary_Table_Gates, RMP_Group %in% c("Gates Kissing", "Gates Other"))
+
+formattable(QS_Summary_Table_Gates, 
+            align = c("l", rep("c", NCOL(QS_Summary_Table_Gates))),
+            list(
+  RMP_Group = formatter("span", style = ~ style(color = "grey",font.weight = "bold")),              
+  Complete = color_tile("white", "pink"),
+  Firm = color_tile("white", "pink"),
+  ProtrusionFree = color_tile("white", "pink"),
+  SafelySited = color_tile("white", "pink"),
+  SwingFreely = color_tile("white", "pink"),
+  LatchesAndBolts = color_tile("white", "pink"),
+  HorseLatch = color_tile("white", "pink"),
+  BackpackNegotiable = color_tile("white", "pink"),
+  LogoPresent = color_tile("white", "pink")
+            ))
+rm(QS_Summary_Table_Gates)
+            
+```
+
+
+### Stiles
+
+```{r}
+# Stiles
+QS_Summary_Table_Stiles <- select(QS_Summary_Table, RMP_Group, Complete, Firm, ProtrusionFree, SafelySited, HandpostPresent, StepsInPlace, LogoPresent)
+QS_Summary_Table_Stiles <- filter(QS_Summary_Table_Stiles, RMP_Group %in% c("Stiles - Ladder", "Stiles - Step", "Stiles - Stone"))
+
+
+formattable(QS_Summary_Table_Stiles, 
+            align = c("l", rep("c", NCOL(QS_Summary_Table_Stiles))),
+            list(
+  RMP_Group = formatter("span", style = ~ style(color = "grey",font.weight = "bold")),              
+  Complete = color_tile("white", "pink"),
+  Firm = color_tile("white", "pink"),
+  ProtrusionFree = color_tile("white", "pink"),
+  SafelySited = color_tile("white", "pink"),
+  HandpostPresent = color_tile("white", "pink"),
+  StepsInPlace = color_tile("white", "pink"),
+  LogoPresent = color_tile("white", "pink")
+    ))
+
+rm(QS_Summary_Table_Stiles)
+```
+
+
+```{r}
+
+
+
+
+
+
+
+# Signs
+formattable(QS_Summary_Table, 
+            align = c("l", rep("c", NCOL(QS_Summary_Table))),
+            list(
+  RMP_Group = formatter("span", style = ~ style(color = "grey",font.weight = "bold")),              
+  Complete = color_tile("white", "pink"),
+  Firm = color_tile("white", "pink"),
+  ProtrusionFree = color_tile("white", "pink"),
+  SafelySited = color_tile("white", "pink"),
+OrientedCorrectly = color_tile("white", "pink"),
+  ClearlyVisible = color_tile("white", "pink"),
+  Bilingual = color_tile("white", "pink"),
+  RouteName = color_tile("white", "pink")
+
+))
+
+# 
+```
+
+
+# Themes
+
+## Formattable
+
+Initially here I'd like to explore the potential for using Formattable: (https://renkun-ken.github.io/formattable/)
+Some good resources for Formattable here:
+- https://cran.r-project.org/web/packages/formattable/vignettes/formattable-data-frame.html
+- https://www.littlemissdata.com/blog/prettytables
+- https://renkun-ken.github.io/formattable/
+- https://www.displayr.com/formattable/
+- https://bioinfo.iric.ca/create-a-nice-looking-table-using-r/
+
+
+
+```{r}
+install.packages("formattable")
+library(formattable)
+```
+
+Here's a nice example script for Formattable from the above website:
+
+
+
+## DataTables
+
+Might be worth checking out DataTables at some point, if I want to create interactive web tables
+
+- https://rstudio.github.io/DT/
+
+## Shiny
+
+A teeny bit optimistic, but could give shiny a go!

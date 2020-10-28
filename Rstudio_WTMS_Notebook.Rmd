@@ -1,0 +1,250 @@
+---
+title: "Gruff's WTMS R Notebook"
+output: 
+  html_notebook:
+    toc: true
+    theme: united
+    
+---
+
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code.
+
+This is my first attempt at collecting snippets of R into one place which will be useful for creating charts for Wales Coast Path Regional Management Plans and National Trail management plans. 
+
+## Loading data and tidyverse packages
+
+First, we need to load the tidyverse library
+```{r}
+install.packages("tidyverse")
+library(tidyverse)
+
+```
+Then we need to Import the relevant Datasets
+```{r}
+Issues_2020.08.11 <- read.csv("Issues_2020-08-11.csv")
+Furniture_2020.08.11 <- read.csv("Furniture_2020-08-11.csv")
+```
+
+## Filtering and grouping data
+
+Ok, the two datasets we've imported includes all Furniture and Issues from the WTMS from all trails. The chart below shows that we have Issue data from multiple trails and that some of those Issues are **Resolved** or **Unresolved** etc.
+
+For our management plans we might want to focus only on **Unresolved** Issues, or perhaps just Issues or Furniture from a specific Local Authority. So before looking into creating some nice looking charts, we want to make sure we can handle the data so it can be used meaningfully.
+
+```{r echo=FALSE}
+ggplot(data=Issues_2020.08.11)+
+  geom_bar(mapping= aes(x=StatusDesc))+
+  coord_flip()+
+  facet_wrap(~ PromotedRoute, nrow = 2)+
+  labs(title = "Bar plots showing the Issue status category count for each trail", subtitle = "This is a subtitle")
+
+```
+### Filter
+
+One way of selecting rows based on an attribute value is to use dplyr's "Filter" function.
+
+The following code will only select Unresolved issues.
+
+```{r}
+dplyr::filter(Issues_2020.08.11, StatusDesc == "Unresolved")
+```
+
+So using dplyr's Filter function we can create an Object which we can refer to within ggplot.
+
+The following Filter will create a new variable called **Issues_Unresolved_Flintshire** that gives us Unresolved Issues in Flintshire:
+
+```{r}
+Issues_Unresolved_Flintshire <- filter(Issues_2020.08.11, ManagingAuth == "Flintshire" & StatusDesc == "Unresolved")
+```
+
+So now we can do a quick ggplot to view Flintshire's Unresolved Issues
+
+```{r}
+ggplot(data=Issues_Unresolved_Flintshire)+
+  geom_bar(mapping= aes(x=PriorityDesc))+
+  coord_flip()+
+  facet_wrap(~ IssueTypeGroup, nrow = 4)+
+  labs(title = "Bar plots showing Issue types and Priorities", subtitle = "This is a subtitle")
+```
+
+## Some nice charts
+
+Ok, I'm getting tired now, so just gonna write some thoughts here before bed.
+
+Problem: The charts in the RMP's will need to show categories where there are no records. For example, in the chart below Flintshire have no boardwalk Issues, but the charts will need to have the category "Boardwalks" in the Y axis in order to show that Flintshire have no boardwalks.
+
+```{r}
+ggplot(data=Issues_Unresolved_Flintshire)+
+  geom_bar(mapping= aes(x=IssueTypeGroup))+
+  coord_flip()+
+  labs(title = "Bar plots showing Issue types and Priorities", subtitle = "This is a subtitle")
+```
+
+My current thinking is that perhaps we need to create a new dataframe where we define the Categories, then we add columns which are calculations from the original data frames. I think this can be done using the Levels function.
+
+The code I lifted from here (https://stackoverflow.com/questions/10834382/ggplot2-keep-unused-levels-barplot) shows a bar chart with defined discrete categories (levels) which allows a 0 count against the C value.
+
+```{r fig.height=2, fig.width=3}
+df <- data.frame(type=c("A", "A", "A", "B", "B"), group=rep("group1", 5))
+df$type <- factor(df$type, levels=c("A","B", "C"))
+df <- data.frame(table(df))
+ggplot(df, aes(x=group, y=Freq, fill=type)) + geom_bar(position="dodge", stat = "identity")
+
+```
+
+So I **think** I should be able to do something similar for the Issues data frame...
+
+Aaaand ta daa!
+
+```{r}
+FlintshireSummary <- select(Issues_Unresolved_Flintshire, IssueTypeGroup)
+FlintshireSummary <- data.frame(table(FlintshireSummary))
+ggplot(data=FlintshireSummary)+
+  geom_bar(mapping= aes(x=FlintshireSummary, y = Freq), stat = "identity")+
+  coord_flip()+
+  labs(title = "Bar plots showing Issue types and Priorities", subtitle = "This is a subtitle")
+```
+
+
+Ok, that kinda works. It's starting to look something like what I'd envisioned. The next natural step will be to create a chart which has number of issues alongside number of corresponding furniture records.
+
+So let's create a corresponding Flintshire Furniture dataframe **Furniture_Present_Flintshire:
+
+```{r}
+Furniture_Present_Flintshire <- filter(Furniture_2020.08.11, ManagingAuth == "Flintshire" & LatestSurveyCondition %in% c("Satisfactory", "Unsat. Existing Issue", "Unsatisfactory"))
+
+```
+
+To create a data frame which includes counts of Issues and counts of Furniture, we need to have the RMP Quality Standards categories defined within each of the original datasets. I'm planning on doing this within FME or even CAMS as it will be easier to adjust in the future. So for now, to test Furniture Count Vs Issues count I'm gonna just do a table of Managing Authorities rather than RMP Categories.
+
+I'm also going to try and use the Pipe function I've just learned about to try and keep things tidy!!
+
+```{r}
+
+#Change the below Objects to define area of interest for this chunk
+Managing_Authority <- list("Isle of Anglesey", "Conwy", "Denbighshire", "Flintshire")
+
+Furniture_Present_Summary <- 
+  filter(Furniture_2020.08.11, ManagingAuth %in% c(Managing_Authority) & LatestSurveyCondition %in% c("Satisfactory", "Unsat. Existing Issue", "Unsatisfactory")) %>% 
+  group_by(ManagingAuth) %>% 
+  summarise(Count = n())
+
+Issues_Unresolved_Summary <- 
+  filter(Issues_2020.08.11, ManagingAuth %in% c(Managing_Authority) & StatusDesc == "Unresolved") %>% 
+  group_by(ManagingAuth) %>% 
+  summarise(Count = n())
+
+LocalAuthorities <- data.frame(LA=c("Flintshire", "Denbighshire", "Conwy", "Isle of Anglesey", "Bradford"))
+
+# Merge will only allow you to Merge two data frames, if you wanna merge more than two, you need to write lots of code, or use the "Reduce" function
+Merged <- merge(LocalAuthorities, Issues_Unresolved_Summary, Furniture_Present_Summary, by.x = 'LA', by.y = 'ManagingAuth', by.z = 'ManagingAuth', all=TRUE)
+
+Merged <- merge(Merged, Furniture_Present_Summary, by.x = 'LA', by.y = 'ManagingAuth', by.z = 'ManagingAuth', all=TRUE)
+
+Furniture_VS_Issues <- data.frame(Issues_Unresolved_Summary$ManagingAuth, Furniture_Present_Summary$Count, Issues_Unresolved_Summary$Count)
+
+Furniture_VS_Issues$Issues_Unresolved_Summary.ManagingAuth <- factor(Furniture_VS_Issues$Issues_Unresolved_Summary.ManagingAuth, levels=c("Isle of Anglesey", "Conwy", "Denbighshire", "Flintshire", "Bradford"))
+
+ggplot(data=Merged)+
+  geom_bar(mapping= aes(x=LA, y = Count), stat = "identity")+
+  coord_flip()+
+  labs(title = "Bar plots showing Issue types and Priorities", subtitle = "This is a subtitle")
+
+ggplot()+
+  geom_bar(data = Issues_Unresolved_Summary, mapping = aes(x = ManagingAuth, y = Count,), stat = "identity")+
+  geom_bar(data = Furniture_Present_Summary, mapping = aes(x = ManagingAuth, y = Count,), stat = "identity")+
+  coord_flip()
+
+```
+
+
+Right, the below code is a work in progress. It's a failed effort to display number of Issues and number of Furniture in one view. It does feel like I'm kinda getting there though, somehow. 
+
+
+```{r}
+FlintshireIssueSummary <- data.frame(IssueGroup=select(Issues_Unresolved_Flintshire, IssueTypeGroup))
+FlintshireFurnitureSummary <- data.frame(FurnitureGroup=select(Furniture_Present_Flintshire, FurnitureGroupType))
+
+
+FlintshireIssueSummary <- data.frame(table(FlintshireIssueSummary))
+FlintshireFurnitureSummary <- data.frame(table(FlintshireFurnitureSummary))
+
+ggplot(data=FlintshireSummary)+
+  geom_bar(mapping= aes(x=FlintshireIssueSummary, y = Freq), stat = "identity")+
+  geom_bar(mapping= aes(x=FlintshireFurnitureSummary, y = Freq), stat = "identity")+
+  coord_flip()+
+  labs(title = "Bar plots showing Issue types and Priorities", subtitle = "This is a subtitle")
+
+
+
+```
+
+My next idea is that perhaps ggplot allows you to define axis with one dataframe in one geom and populate those axis in another geom with another dataframe? God knows!
+
+## Chart Ideas
+
+Here's a section just to explore ideas for charts / visualisations for later use.
+
+### Tile Chart
+
+This tile chart could give an idea of the Priority distribution of Issues in Flintshire?
+
+```{r}
+Issue_Summary <-  
+  filter(Issues_2020.08.11, ManagingAuth %in% c("Flintshire", "Isle of Anglesey", "Conwy", "Denbighshire")) %>% 
+  group_by(IssueTypeGroup, ManagingAuth)
+Issue_Summary <-   summarise(Issue_Summary, Count = n(),na.rm = TRUE)
+
+ggplot(data=Issue_Summary, mapping = aes(y = IssueTypeGroup, x = ManagingAuth)) +
+    geom_tile(mapping = aes(fill = Count))
+```
+
+Maintain Sign in Anglese is a bit of an outlier, so we can use the filter to remove Maintain Sign to see if anything else stands out
+
+```{r}
+Issue_Summary <-  
+  filter(Issues_2020.08.11, ManagingAuth %in% c("Flintshire", "Isle of Anglesey", "Conwy", "Denbighshire"), IssueTypeGroup != "Maintain Sign") %>% 
+  group_by(IssueTypeGroup, ManagingAuth)
+Issue_Summary <-   summarise(Issue_Summary, Count = n(),na.rm = TRUE)
+
+ggplot(data=Issue_Summary, mapping = aes(y = IssueTypeGroup, x = ManagingAuth)) +
+    geom_tile(mapping = aes(fill = Count))
+```
+
+
+## Useful bits & Code Ideas
+
+### Levels
+
+You can use levels to identify the number of discrete values in a categorical attribute. e.g. 
+```{r}
+levels(Issues_2020.08.11$PromotedRoute)
+```
+
+### Factors
+
+### Assigning Variables and fetching using Get
+
+You can assign an attribute value as a variable, and then call that variable within the code using the get command
+
+```{r}
+#Change the below Objects to define area of interest for this chunk
+Managing_Authority <- "Isle of Anglesey"
+
+Furniture_Present_Summary <- 
+  filter(Furniture_2020.08.11, ManagingAuth == get("Managing_Authority") & LatestSurveyCondition %in% c("Satisfactory", "Unsat. Existing Issue", "Unsatisfactory"))
+```
+
+
+## Themes
+
+GGplot themes is how you customise how charts look. This is the next step!
+
+https://ggplot2.tidyverse.org/reference/theme_get.html
+
+There are some REALLY cool looking tables available with the Formattable plugin
+
+https://renkun-ken.github.io/formattable/
+
+
