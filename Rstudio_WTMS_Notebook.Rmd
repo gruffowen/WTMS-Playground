@@ -243,8 +243,12 @@ GGplot themes is how you customise how charts look. This is the next step!
 
 https://ggplot2.tidyverse.org/reference/theme_get.html
 
-There are some REALLY cool looking tables available with the Formattable plugin
+There are some cool looking tables available with the Formattable plugin
 
 https://renkun-ken.github.io/formattable/
+
+Update: I'm starting to think that GT will be better for Tables.
+
+https://gt.rstudio.com/
 
 

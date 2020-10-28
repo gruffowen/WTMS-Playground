@@ -1,5 +1,5 @@
 ---
-title: "WTMS Nicely Formatted tables"
+title: "WTMS Nicely Formatted Charts"
 output: 
   html_notebook:
     toc: true

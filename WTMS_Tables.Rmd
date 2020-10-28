@@ -11,11 +11,10 @@ output:
 # Load the Libraries
 ```{r}
 # Need this package for DPLYR and ggplot etc.
-install.packages("tidyverse")
 library(tidyverse)
 
 # Need this package for formating tables.
-install.packages("formattable")
+
 library(formattable)
 
 ```
@@ -28,7 +27,7 @@ Furniture_2020.08.11 <- read.csv("Furniture_2020-08-11.csv")
 ```
 
 
-I started this Notebook as it became obvious that data structure needs to be different depending on whether I wanted to output Tables or Charts.
+I started this Notebook as it became obvious that data structure needs to be different depending on whether I want to output Tables or Charts.
 
 # Data Transformation
 
